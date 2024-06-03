@@ -30,6 +30,10 @@ async function run() {
     await client.connect();
     const scholarshipCollection = client.db('EduSparkleDB').collection('Scholarship')
   
+    app.get('/allScholarship', async(req,res) =>{
+        const result = await scholarshipCollection.find().toArray()
+        res.send(result)
+    })
     
     await client.db("admin").command({ ping: 1 });
     console.log("Pinged your deployment. You successfully connected to MongoDB!");
