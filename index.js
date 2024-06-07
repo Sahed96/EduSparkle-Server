@@ -32,6 +32,7 @@ async function run() {
 
     const scholarshipCollection = client.db('EduSparkleDB').collection('Scholarship')
     const paymentCollection = client.db('EduSparkleDB').collection('payments')
+    const applicantCollection = client.db('EduSparkleDB').collection('applicants')
   
     app.get('/allScholarship', async(req,res) =>{
         const result = await scholarshipCollection.find().toArray()
@@ -44,6 +45,20 @@ async function run() {
   
       const result = await scholarshipCollection.findOne(query);
       res.send(result);
+  })
+
+  app.get('/applicant/:id', async (req,res) => {
+    const id = req.params.id
+    
+    const result= await paymentCollection.findOne({transactionId: id})
+    res.send(result)
+  })
+
+  app.post('/applicantData', async (req, res) => {
+    const applied = req.body;
+    console.log(applied);
+    const result = await applicantCollection.insertOne(applied)
+    res.send(result)
   })
 
   // payment stripe
