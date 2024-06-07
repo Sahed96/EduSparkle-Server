@@ -61,6 +61,14 @@ async function run() {
     res.send(result)
   })
 
+
+  app.get('/myApplication/:email', async (req, res) =>{
+    const email = req.params.email
+ 
+    const result = await applicantCollection.find({email}).toArray();
+    res.send(result);
+  })
+
   // payment stripe
 
   app.post("/create-payment-intent", async (req, res) => {
