@@ -34,7 +34,47 @@ async function run() {
     const paymentCollection = client.db('EduSparkleDB').collection('payments')
     const applicantCollection = client.db('EduSparkleDB').collection('applicants')
     const reviewCollection = client.db('EduSparkleDB').collection('reviews')
+    const userCollection = client.db('EduSparkleDB').collection('users')
   
+    app.post('/users', async(req,res) => {
+      const user = req.body
+      const query = { email: user.email }
+      const existingUser = await userCollection.findOne(query);
+      if (existingUser) {
+        return res.send({ message: 'user already exists', insertedId: null })
+      }
+      const result = await userCollection.insertOne(user);
+      res.send(result);
+    })
+
+    app.get('/users', async(req,res) => {
+      const result = await userCollection.find().toArray()
+      res.send(result)
+    })
+
+    app.patch('/users', async(req,res) => {
+      const email = req.query.email
+      const value = req.query.value
+      const result = await userCollection.findOneAndUpdate(
+       {email: email}, {$set: {role: value}} 
+      )
+      res.send(result)
+    })
+
+    app.get('/users/role/:email', async (req, res) => {
+      const email = req.params.email;
+      
+      const user = await userCollection.findOne({ email });
+      let userRole = '';
+      if (user?.role === 'admin') {
+        userRole = 'admin';
+      }
+      if (user?.role === 'moderator') {
+        userRole = 'moderator';
+      }
+      res.send({ userRole });
+    });
+
     app.get('/allScholarship', async(req,res) =>{
         const result = await scholarshipCollection.find().toArray()
         res.send(result)
