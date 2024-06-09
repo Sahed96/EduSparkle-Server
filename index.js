@@ -33,6 +33,7 @@ async function run() {
     const scholarshipCollection = client.db('EduSparkleDB').collection('Scholarship')
     const paymentCollection = client.db('EduSparkleDB').collection('payments')
     const applicantCollection = client.db('EduSparkleDB').collection('applicants')
+    const reviewCollection = client.db('EduSparkleDB').collection('reviews')
   
     app.get('/allScholarship', async(req,res) =>{
         const result = await scholarshipCollection.find().toArray()
@@ -58,6 +59,26 @@ async function run() {
     const applied = req.body;
     console.log(applied);
     const result = await applicantCollection.insertOne(applied)
+    res.send(result)
+  })
+
+
+  app.post('/reviewData', async (req, res) => {
+    const review = req.body;
+    
+    const result = await reviewCollection.insertOne(review)
+    res.send(result)
+  })
+
+  app.get('/myReviews/:email', async(req,res) => {
+    const email = req.params.email
+    const result = await reviewCollection.find({email}).toArray()
+    res.send(result)
+  })
+
+  app.get('/singleApplyData/:id', async(req,res)=> {
+    const id = req.params.id
+    const result = await applicantCollection.findOne({scholarshipId: id}) 
     res.send(result)
   })
 
