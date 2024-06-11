@@ -102,6 +102,11 @@ async function run() {
     res.send(result)
   })
 
+  app.get('/allAppliedApplication', async(req,res) => {
+    const result = await applicantCollection.find().toArray()
+    res.send(result)
+  })
+
 
   app.post('/reviewData', async (req, res) => {
     const review = req.body;
@@ -116,9 +121,47 @@ async function run() {
     res.send(result)
   })
 
+  app.get('/allReview', async(req,res) => {
+    
+    const result = await reviewCollection.find().toArray()
+    res.send(result)
+  })
+
   app.get('/singleApplyData/:id', async(req,res)=> {
     const id = req.params.id
     const result = await applicantCollection.findOne({scholarshipId: id}) 
+    res.send(result)
+  })
+
+  app.get('/applicantDetails/:id', async(req,res)=> {
+    const id = req.params.id
+    const result = await applicantCollection.findOne({_id: new ObjectId(id)}) 
+    res.send(result)
+  })
+
+  app.patch('/applicantStatus/:id', async(req,res) => {
+    const id =req.params.id
+    const filter = {_id: new ObjectId(id)}
+    const updateDoc = {
+      $set: {
+        status: 'rejected'
+      }
+    }
+    const result = await applicantCollection.updateOne(filter,updateDoc)
+    res.send(result)
+  })
+
+  app.patch('/adminFeedback/:id', async(req,res) => {
+    const id =req.params.id
+    const data = req.body.feedback
+
+    const filter = {_id: new ObjectId(id)}
+    const updateDoc = {
+      $set: {
+        feedback: data
+      }
+    }
+    const result = await applicantCollection.updateOne(filter,updateDoc)
     res.send(result)
   })
 
