@@ -1,13 +1,23 @@
 require('dotenv').config()
 const express =require('express');
 const cors = require('cors');
+const jwt = require('jsonwebtoken')
 const stripe = require("stripe")(process.env.STRIPE_KEY)
 const app = express();
 
 const port = process.env.PORT || 5000;
 
 
-app.use(cors());
+
+app.use(
+  cors({
+    origin: [
+      "http://localhost:5173",
+      "https://edu-sparkle-2959f.web.app",
+      
+    ]
+  })
+);
 app.use(express.json());
 
 
@@ -28,13 +38,51 @@ const client = new MongoClient(uri, {
 
 async function run() {
   try {
-    await client.connect();
+    // await client.connect();
 
     const scholarshipCollection = client.db('EduSparkleDB').collection('Scholarship')
     const paymentCollection = client.db('EduSparkleDB').collection('payments')
     const applicantCollection = client.db('EduSparkleDB').collection('applicants')
     const reviewCollection = client.db('EduSparkleDB').collection('reviews')
     const userCollection = client.db('EduSparkleDB').collection('users')
+
+
+     // jwt related api
+     app.post('/jwt', async (req, res) => {
+      const user = req.body;
+      const token = jwt.sign(user, process.env.ACCESS_TOKEN, { expiresIn: '24h' });
+      res.send({ token });
+    })
+
+    // middleware
+
+    const verifyToken = (req, res, next) => {
+      
+      if (!req.headers.authorization) {
+        return res.status(401).send({ message: 'unauthorized access' });
+      }
+      const token = req.headers.authorization.split(' ')[1];
+      jwt.verify(token, process.env.ACCESS_TOKEN, (err, decoded) => {
+        if (err) {
+          return res.status(401).send({ message: 'unauthorized access' })
+        }
+        req.decoded = decoded;
+        next();
+      })
+    }
+
+  
+    const verifyAdmin = async (req, res, next) => {
+      const email = req.decoded.email;
+      const query = { email: email };
+      const user = await userCollection.findOne(query);
+      const isAdmin = user?.role === 'admin';
+      if (!isAdmin) {
+        return res.status(403).send({ message: 'forbidden access' });
+      }
+      next();
+    }
+
   
     app.post('/users', async(req,res) => {
       const user = req.body
@@ -47,7 +95,7 @@ async function run() {
       res.send(result);
     })
 
-    app.get('/users', async(req,res) => {
+    app.get('/users',verifyToken,verifyAdmin, async(req,res) => {
       const result = await userCollection.find().toArray()
       res.send(result)
     })
@@ -80,7 +128,25 @@ async function run() {
         res.send(result)
     })
 
-    app.get('/scholarshipDetails/:id', async (req, res) => {
+    app.get('/count',verifyToken,verifyAdmin, async(req,res) => {
+      const appliedCount = await applicantCollection.estimatedDocumentCount()
+      const scholarshipCount = await scholarshipCollection.estimatedDocumentCount()
+      res.send({appliedCount,scholarshipCount})
+    })
+
+    app.get('/topScholarship', async(req,res) =>{
+      const sort = req.query.sort
+      if(sort === 'fees'){
+        const result = await scholarshipCollection.find().sort({Application_Fees: 1}).limit(6).toArray()
+       return res.send(result)
+      }
+
+        const result = await scholarshipCollection.find().limit(6).toArray()
+        res.send(result)
+    })
+
+    
+    app.get('/scholarshipDetails/:id',verifyToken, async (req, res) => {
       const id = req.params.id;
       const query = { _id: new ObjectId(id) }
   
@@ -88,34 +154,41 @@ async function run() {
       res.send(result);
   })
 
-  app.get('/applicant/:id', async (req,res) => {
+  app.get('/applicant/:id',verifyToken, async (req,res) => {
     const id = req.params.id
     
     const result= await paymentCollection.findOne({transactionId: id})
     res.send(result)
   })
 
-  app.post('/applicantData', async (req, res) => {
+  app.post('/applicantData',verifyToken, async (req, res) => {
     const applied = req.body;
-    console.log(applied);
+    
     const result = await applicantCollection.insertOne(applied)
     res.send(result)
   })
 
-  app.get('/allAppliedApplication', async(req,res) => {
+  app.post('/addScholarship',verifyToken, async (req, res) => {
+    const addData = req.body;
+    
+    const result = await scholarshipCollection.insertOne(addData)
+    res.send(result)
+  })
+
+  app.get('/allAppliedApplication',verifyToken, async(req,res) => {
     const result = await applicantCollection.find().toArray()
     res.send(result)
   })
 
 
-  app.post('/reviewData', async (req, res) => {
+  app.post('/reviewData',verifyToken, async (req, res) => {
     const review = req.body;
     
     const result = await reviewCollection.insertOne(review)
     res.send(result)
   })
 
-  app.get('/myReviews/:email', async(req,res) => {
+  app.get('/myReviews/:email',verifyToken, async(req,res) => {
     const email = req.params.email
     const result = await reviewCollection.find({email}).toArray()
     res.send(result)
@@ -133,13 +206,13 @@ async function run() {
     res.send(result)
   })
 
-  app.get('/applicantDetails/:id', async(req,res)=> {
+  app.get('/applicantDetails/:id',verifyToken, async(req,res)=> {
     const id = req.params.id
     const result = await applicantCollection.findOne({_id: new ObjectId(id)}) 
     res.send(result)
   })
 
-  app.patch('/applicantStatus/:id', async(req,res) => {
+  app.patch('/applicantStatus/:id',verifyToken, async(req,res) => {
     const id =req.params.id
     const filter = {_id: new ObjectId(id)}
     const updateDoc = {
@@ -151,7 +224,7 @@ async function run() {
     res.send(result)
   })
 
-  app.patch('/adminFeedback/:id', async(req,res) => {
+  app.patch('/adminFeedback/:id',verifyToken, async(req,res) => {
     const id =req.params.id
     const data = req.body.feedback
 
@@ -165,8 +238,29 @@ async function run() {
     res.send(result)
   })
 
+  app.delete('/handleDelete',verifyToken, async(req,res) => {
+    const id = req.query.id
+    const api = req.query.api
+    if(api === 'applicationDelete'){
+      const result = await applicantCollection.deleteOne({_id: new ObjectId(id)})
+    res.send(result)
+    }
+    if(api === 'reviewDelete'){
+      const result = await reviewCollection.deleteOne({_id: new ObjectId(id)})
+    res.send(result)
+    }
+    if(api === 'userDelete'){
+      const result = await userCollection.deleteOne({_id: new ObjectId(id)})
+    res.send(result)
+    }
+    if(api === 'scholarshipDelete'){
+      const result = await scholarshipCollection.deleteOne({_id: new ObjectId(id)})
+    res.send(result)
+    }
+  })
 
-  app.get('/myApplication/:email', async (req, res) =>{
+
+  app.get('/myApplication/:email',verifyToken, async (req, res) =>{
     const email = req.params.email
  
     const result = await applicantCollection.find({email}).toArray();
@@ -175,7 +269,7 @@ async function run() {
 
   // payment stripe
 
-  app.post("/create-payment-intent", async (req, res) => {
+  app.post("/create-payment-intent",verifyToken, async (req, res) => {
     const { price } = req.body;
     const amount = parseInt(price*100)
     console.log(amount,'total price');
@@ -192,7 +286,7 @@ async function run() {
     });
   });
 
-  app.post('/payments', async (req,res) => {
+  app.post('/payments',verifyToken, async (req,res) => {
     const payment = req.body
     const result = await paymentCollection.insertOne(payment)
 
@@ -200,8 +294,8 @@ async function run() {
   })
   
     
-    await client.db("admin").command({ ping: 1 });
-    console.log("Pinged your deployment. You successfully connected to MongoDB!");
+    // await client.db("admin").command({ ping: 1 });
+    // console.log("Pinged your deployment. You successfully connected to MongoDB!");
   } finally {
     // Ensures that the client will close when you finish/error
     // await client.close();
